@@ -5,11 +5,11 @@ from py.fm_ops import fm_ops
 
 class ModelStat:
   def __init__(self, name):
-    self.int_delta = tf.placeholder(dtype = tf.int32)
+    self.int_delta = tf.placeholder(dtype = tf.int64)
     self.float_delta = tf.placeholder(dtype = tf.float32)
     self.total_loss = tf.Variable(0.0, name = name + '_loss', trainable = False)
     self.incre_total_loss = self.total_loss.assign_add(self.float_delta, True)
-    self.total_example_num = tf.Variable(0, name = name + '_example_num', trainable = False)
+    self.total_example_num = tf.Variable(0, name = name + '_example_num', trainable = False, dtype = tf.int64)
     self.incre_total_example_num = self.total_example_num.assign_add(self.int_delta, True)
 
   def update(self, sess, loss_delta, example_num_delta):
@@ -42,13 +42,13 @@ class FmModelBase:
       self.file_dequeue_op = self.file_queue.dequeue()
       self.file_close_queue_op = self.file_queue.close()
 
-      self.vocab_blocks = []                   
+      self.vocab_blocks = []
       vocab_size_per_block = vocabulary_size / vocabulary_block_num + 1
       for i in range(vocabulary_block_num):
         self.vocab_blocks.append(tf.Variable(tf.random_uniform([vocab_size_per_block, factor_num + 1], -init_value_range, init_value_range), name = 'vocab_block_%d'%i))
       self.file_id = tf.placeholder(dtype = tf.int32)
       labels, weights, ori_ids, feature_ids, feature_vals, feature_poses = fm_ops.fm_parser(self.file_id, self.data_file, self.weight_file, batch_size, vocabulary_size, hash_feature_id)
-      self.example_num = tf.size(labels)
+      self.example_num = tf.reduce_sum(weights * tf.ones([tf.size(labels)], dtype=tf.float32))
       local_params = tf.nn.embedding_lookup(self.vocab_blocks, ori_ids)
       self.pred_score, reg_score = fm_ops.fm_scorer(feature_ids, local_params, feature_vals, feature_poses, factor_lambda, bias_lambda)
       if loss_type == 'logistic':
@@ -61,7 +61,7 @@ class FmModelBase:
         self.opt = optimizer.minimize(self.loss + reg_score)
       self.init_vars = tf.initialize_all_variables()
       self.saver = tf.train.Saver(self.vocab_blocks)
-  
+
   def main_ps_device(self):
     raise NotImplementedError("Subclasses should implement this!")
 
