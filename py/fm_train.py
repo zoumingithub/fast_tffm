@@ -1,10 +1,11 @@
 import threading, time, random
 from py.fm_model import LocalFmModel, DistFmModel
 import tensorflow as tf
+import os
 
 class _TrainStats:
   pass
-def _train(sess, supervisor, worker_num, is_master_worker, need_to_init, model, train_files, weight_files, validation_files, epoch_num, thread_num, model_file, output_progress_every_n_examples = 10000):
+def _train(sess, supervisor, worker_num, is_master_worker, need_to_init, model, train_files, weight_files, validation_files, epoch_num, thread_num, model_file, model_path, model_version, output_progress_every_n_examples = 10000):
   with sess as sess:
     if is_master_worker:
       if weight_files != None:
@@ -36,6 +37,7 @@ def _train(sess, supervisor, worker_num, is_master_worker, need_to_init, model, 
             while not coord.should_stop() and not (supervisor != None and supervisor.should_stop()):
               if is_training:
                 _, loss, example_num = sess.run([model.opt, model.loss, model.example_num], feed_dict = {model.file_id: fid, model.data_file: data_file, model.weight_file: weight_file})
+        #        print '--DEBUG each epoch loss: %.5f; epoch example num: %d;'%(loss, example_num)
                 global_loss, global_example_num = model.training_stat[epoch_id].update(sess, loss, example_num)
               else:
                 loss, example_num = sess.run([model.loss, model.example_num], feed_dict = {model.file_id: fid, model.data_file: data_file, model.weight_file: weight_file})
@@ -87,8 +89,34 @@ def _train(sess, supervisor, worker_num, is_master_worker, need_to_init, model, 
           print '; Validation: %.5f'%(validation_loss / validation_example_num)
         else:
           print
-      model.saver.save(sess, model_file, write_meta_graph = False)
-      print 'Model saved to', model_file
+#      model.saver.save(sess, model_file, write_meta_graph = False)
+#      print 'Model saved to', model_file
+      sess.graph._unsafe_unfinalize()
+      legacy_init_op = tf.group(tf.tables_initializer(), name='legacy_init_op')
+      output_path = os.path.join(
+          tf.compat.as_bytes(model_path),
+          tf.compat.as_bytes(str(model_version)))
+      builder = tf.saved_model.builder.SavedModelBuilder(output_path)
+      builder.add_meta_graph_and_variables(
+        sess, [tf.saved_model.tag_constants.SERVING],
+        signature_def_map={
+            'predict_score':
+                model.prediction_signature,
+        },
+        clear_devices=True,
+        legacy_init_op=legacy_init_op)
+
+  #    print(model.vocab_blocks[0])
+  #    print(model.vocab_blocks[1])
+  #    for i in range(25002):
+  #      print sess.run(model.vocab_blocks[0][i])
+  #    for i in range(25002):
+  #      print sess.run(model.vocab_blocks[1][i])
+
+      sess.graph.finalize()
+      builder.save(as_text=True)
+      print 'Done exporting!'
+
 
 def _queue_size(train_files, validation_files, epoch_num):
   qsize = len(train_files)
@@ -96,11 +124,11 @@ def _queue_size(train_files, validation_files, epoch_num):
     qsize += len(validation_files)
   return qsize * epoch_num
 
-def local_train(train_files, weight_files, validation_files, epoch_num, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, init_value_range, loss_type, optimizer, batch_size, factor_lambda, bias_lambda, thread_num, model_file):
+def local_train(train_files, weight_files, validation_files, epoch_num, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, init_value_range, loss_type, optimizer, batch_size, factor_lambda, bias_lambda, thread_num, model_file, model_path, model_version):
   model = LocalFmModel(_queue_size(train_files, validation_files, epoch_num), epoch_num, vocabulary_size, vocabulary_block_num, hash_feature_id,factor_num, init_value_range, loss_type, optimizer, batch_size, factor_lambda, bias_lambda)
-  _train(tf.Session(), None, 1, True, True, model, train_files, weight_files, validation_files, epoch_num, thread_num, model_file)
+  _train(tf.Session(), None, 1, True, True, model, train_files, weight_files, validation_files, epoch_num, thread_num, model_file, model_path, model_version)
 
-def dist_train(ps_hosts, worker_hosts, job_name, task_idx, train_files, weight_files, validation_files, epoch_num, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, init_value_range, loss_type, optimizer, batch_size, factor_lambda, bias_lambda, thread_num, model_file):
+def dist_train(ps_hosts, worker_hosts, job_name, task_idx, train_files, weight_files, validation_files, epoch_num, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, init_value_range, loss_type, optimizer, batch_size, factor_lambda, bias_lambda, thread_num, model_file, model_path, model_version):
   cluster = tf.train.ClusterSpec({'ps': ps_hosts, 'worker': worker_hosts})
   server = tf.train.Server(cluster, job_name = job_name, task_index = task_idx)
   if job_name == 'ps':
@@ -108,7 +136,7 @@ def dist_train(ps_hosts, worker_hosts, job_name, task_idx, train_files, weight_f
   elif job_name == 'worker':    
     model = DistFmModel(_queue_size(train_files, validation_files, epoch_num), cluster, task_idx, epoch_num, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, init_value_range, loss_type, optimizer, batch_size, factor_lambda, bias_lambda)
     sv = tf.train.Supervisor(is_chief = (task_idx == 0), init_op = model.init_vars)
-    _train(sv.managed_session(server.target, config = tf.ConfigProto(log_device_placement=False)), sv, len(worker_hosts), task_idx == 0, False, model, train_files, weight_files, validation_files, epoch_num, thread_num, model_file)
+    _train(sv.managed_session(server.target, config = tf.ConfigProto(log_device_placement=False)), sv, len(worker_hosts), task_idx == 0, False, model, train_files, weight_files, validation_files, epoch_num, thread_num, model_file, model_path, model_version)
   else:
     sys.stderr.write('Invalid Job Name: %s'%job_name)
     raise

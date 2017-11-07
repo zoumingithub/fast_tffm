@@ -1,7 +1,7 @@
 import ConfigParser, sys
 from py.fm_ops import fm_ops
 from py.fm_train import local_train, dist_train
-from py.fm_predict import local_predict, dist_predict
+from py.fm_predict import local_predict
 import tensorflow as tf
 
 cmd_instruction = '''Usage:
@@ -71,6 +71,9 @@ factor_num = int(read_config(GENERAL_SECTION, 'factor_num'))
 vocabulary_size = int(read_config(GENERAL_SECTION, 'vocabulary_size'))
 vocabulary_block_num = int(read_config(GENERAL_SECTION, 'vocabulary_block_num'))
 model_file = read_config(GENERAL_SECTION, 'model_file')
+model_path = read_config(GENERAL_SECTION, 'model_path')
+model_version = read_config(GENERAL_SECTION, 'model_version')
+
 hash_feature_id = read_config(GENERAL_SECTION, 'hash_feature_id').strip().lower() == 'true'
 
 if mode == 'dist_train' or mode == 'dist_predict':
@@ -98,15 +101,13 @@ if mode == 'train' or mode == 'dist_train':
   optimizer = tf.train.AdagradOptimizer(learning_rate, adagrad_init_accumulator)
 
   if mode == 'train':
-    local_train(train_files, weight_files, validation_files, epoch_num, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, init_value_range, loss_type, optimizer, batch_size, factor_lambda, bias_lambda, thread_num, model_file)
+    local_train(train_files, weight_files, validation_files, epoch_num, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, init_value_range, loss_type, optimizer, batch_size, factor_lambda, bias_lambda, thread_num, model_file, model_path, model_version)
   else:
-    dist_train(ps_hosts, worker_hosts, job_name, task_idx, train_files, weight_files, validation_files, epoch_num, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, init_value_range, loss_type, optimizer, batch_size, factor_lambda, bias_lambda, thread_num, model_file)
+    dist_train(ps_hosts, worker_hosts, job_name, task_idx, train_files, weight_files, validation_files, epoch_num, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, init_value_range, loss_type, optimizer, batch_size, factor_lambda, bias_lambda, thread_num, model_file, model_path, model_version)
 elif mode == 'predict' or mode == 'dist_predict':
   predict_files = read_config(PREDICT_SECTION, 'predict_files').split(',')
   score_path = read_config(PREDICT_SECTION, 'score_path')
 
   if mode == 'predict':
-    local_predict(predict_files, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, model_file, score_path)
-  else:
-    dist_predict(ps_hosts, worker_hosts, job_name, task_idx, predict_files, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, model_file, score_path)
+    local_predict(predict_files, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, model_file, score_path, model_path, model_version)
 

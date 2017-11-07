@@ -59,9 +59,22 @@ class FmModelBase:
         self.loss = None
       if optimizer != None:
         self.opt = optimizer.minimize(self.loss + reg_score)
-      #self.init_vars = tf.initialize_all_variables()
       self.init_vars = tf.global_variables_initializer()
-      self.saver = tf.train.Saver(self.vocab_blocks)
+#      self.saver = tf.train.Saver(self.vocab_blocks)
+      tensor_info_ori_ids = tf.saved_model.utils.build_tensor_info(ori_ids)
+      tensor_info_feature_ids = tf.saved_model.utils.build_tensor_info(feature_ids)
+      tensor_info_feature_vals = tf.saved_model.utils.build_tensor_info(feature_vals)
+      tensor_info_feature_pos = tf.saved_model.utils.build_tensor_info(feature_poses)
+      tensor_info_pred = tf.saved_model.utils.build_tensor_info(self.pred_score)
+
+      self.prediction_signature = (
+          tf.saved_model.signature_def_utils.build_signature_def(
+              inputs={'ori_ids': tensor_info_ori_ids,
+                      'feature_ids': tensor_info_feature_ids,
+                      'feature_vals': tensor_info_feature_vals,
+                      'feature_pos': tensor_info_feature_pos},
+              outputs={'pred_score': tensor_info_pred},
+              method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME))
 
   def main_ps_device(self):
     raise NotImplementedError("Subclasses should implement this!")
