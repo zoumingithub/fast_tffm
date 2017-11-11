@@ -9,11 +9,11 @@ def predict(sess, predict_files, score_path, model_path, model_version, batch_si
   with sess as sess:
       if not os.path.exists(score_path):
           os.mkdir(score_path)
-      
+
       export_path = os.path.join(
           tf.compat.as_bytes(model_path),
           tf.compat.as_bytes(model_version))
-      
+
       meta_graph_def = tf.saved_model.loader.load(sess, [tf.saved_model.tag_constants.SERVING], export_path)
       signature = meta_graph_def.signature_def
       signature_key = 'predict_score'
@@ -29,14 +29,14 @@ def predict(sess, predict_files, score_path, model_path, model_version, batch_si
       feature_vals = sess.graph.get_tensor_by_name(feature_vals_tensor_name)
       feature_poses = sess.graph.get_tensor_by_name(feature_pos_tensor_name)
       pred_score = sess.graph.get_tensor_by_name(pred_score_tensor_name)
-      
+
       file_id = tf.placeholder(dtype = tf.int32)
       data_file = tf.placeholder(dtype = tf.string)
       weight_file = tf.placeholder(dtype = tf.string)
 
       try:
           fid = 0
-          for fname in predict_files: 
+          for fname in predict_files:
               score_file = score_path + '/' + os.path.basename(fname) + '.score'
               print 'Start processing %s, scores written to %s ...'%(fname, score_file)
               labels_t, weights_t, ori_ids_t, feature_ids_t, feature_vals_t, feature_poses_t = fm_ops.fm_parser(file_id, data_file, weight_file, batch_size, vocabulary_size, hash_feature_id)

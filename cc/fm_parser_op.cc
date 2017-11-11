@@ -4,6 +4,7 @@
 #include <ctime>
 #include <cstdio>
 #include <fstream>
+#include <iostream>
 
 REGISTER_OP("FmParser")
     .Input("file_id: int32")
@@ -132,6 +133,19 @@ class FmParserOp : public OpKernel {
   std::string current_weight_file_ = "";
   int file_id_ = -1;
 
+  char *trimwhitespace(char *str)
+  {
+      char *end;
+      while(isspace((unsigned char)*str)) str++;
+      if(*str == 0)
+          return str;
+
+      end = str + strlen(str) - 1;
+      while(end > str && isspace((unsigned char)*end)) end--;
+      *(end+1) = 0;
+      return str;
+  }
+
   void ParseLine(OpKernelContext* ctx, const string& line, bool hash_feature_id, int64 vocab_size, std::vector<float>& labels,
       std::map<int64, int32>& ori_id_map, std::vector<int32>& feature_ids, std::vector<float>& feature_vals, std::vector<int32>& feature_poses) {
     const char* p = line.c_str();
@@ -149,16 +163,17 @@ class FmParserOp : public OpKernel {
     char* err;
     while (true) {
       if (sscanf(p, " %[^: ]%n", ori_id_str, &offset) != 1) break;
+      char* ori_id_str_trim = trimwhitespace(ori_id_str);
       if (hash_feature_id) {
-        ori_id = Hash64(ori_id_str, strlen(ori_id_str));
+        ori_id = Hash64(ori_id_str_trim, strlen(ori_id_str_trim));
       } else {
-        ori_id = strtol(ori_id_str, &err, 10);
-        OP_REQUIRES(ctx, *err == 0, errors::InvalidArgument("Invalid feature id ", ori_id_str, ". Set hash_feature_id = True?"))
+        ori_id = strtol(ori_id_str_trim, &err, 10);
+        OP_REQUIRES(ctx, *err == 0, errors::InvalidArgument("Invalid feature id ", ori_id_str_trim, ". Set hash_feature_id = True?"))
       }
       ori_id = labs(ori_id % vocab_size);
       p += offset;
       if (*p == ':') {
-        OP_REQUIRES(ctx, sscanf(p, ":%f%n", &fv, &offset) == 1, errors::InvalidArgument("Invalid feature value: ", ori_id_str))
+        OP_REQUIRES(ctx, sscanf(p, ":%f%n", &fv, &offset) == 1, errors::InvalidArgument("Invalid feature value: ", ori_id_str_trim))
         p += offset;
       } else {
         fv = 1;

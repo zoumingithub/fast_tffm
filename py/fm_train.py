@@ -37,7 +37,7 @@ def _train(sess, supervisor, worker_num, is_master_worker, need_to_init, model, 
             while not coord.should_stop() and not (supervisor != None and supervisor.should_stop()):
               if is_training:
                 _, loss, example_num = sess.run([model.opt, model.loss, model.example_num], feed_dict = {model.file_id: fid, model.data_file: data_file, model.weight_file: weight_file})
-        #        print '--DEBUG each epoch loss: %.5f; epoch example num: %d;'%(loss, example_num)
+                #print '--DEBUG each MB loss: %.5f; epoch example num: %d;'%(loss, example_num)
                 global_loss, global_example_num = model.training_stat[epoch_id].update(sess, loss, example_num)
               else:
                 loss, example_num = sess.run([model.loss, model.example_num], feed_dict = {model.file_id: fid, model.data_file: data_file, model.weight_file: weight_file})
@@ -133,7 +133,7 @@ def dist_train(ps_hosts, worker_hosts, job_name, task_idx, train_files, weight_f
   server = tf.train.Server(cluster, job_name = job_name, task_index = task_idx)
   if job_name == 'ps':
     server.join()
-  elif job_name == 'worker':    
+  elif job_name == 'worker':
     model = DistFmModel(_queue_size(train_files, validation_files, epoch_num), cluster, task_idx, epoch_num, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, init_value_range, loss_type, optimizer, batch_size, factor_lambda, bias_lambda)
     sv = tf.train.Supervisor(is_chief = (task_idx == 0), init_op = model.init_vars)
     _train(sv.managed_session(server.target, config = tf.ConfigProto(log_device_placement=False)), sv, len(worker_hosts), task_idx == 0, False, model, train_files, weight_files, validation_files, epoch_num, thread_num, model_file, model_path, model_version)

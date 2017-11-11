@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
-
+#include <iostream>
 
 REGISTER_OP("FmLineParser")
     .Input("fea_str: string")
@@ -44,6 +44,7 @@ class FmLineParserOp : public OpKernel {
     std::stringstream ss(fea_str);
     while (getline(ss, buf, ';')){
       data_lines.push_back(buf);
+      std::cout << buf << std::endl;
     }
 
     feature_poses.push_back(0);
