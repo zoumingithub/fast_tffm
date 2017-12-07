@@ -3,7 +3,7 @@ from py.fm_ops import fm_ops
 from py.fm_train import local_train, dist_train
 from py.fm_predict import local_predict
 import tensorflow as tf
-
+import utils
 cmd_instruction = '''Usage:
   1. Local training.
     python fast_tffm.py train <cfg_file>
@@ -87,7 +87,9 @@ if mode == 'train' or mode == 'dist_train':
   bias_lambda = float(read_config(TRAIN_SECTION, 'bias_lambda'))
   thread_num = int(read_config(TRAIN_SECTION, 'thread_num'))
   epoch_num = int(read_config(TRAIN_SECTION, 'epoch_num'))
-  train_files = read_strs_config(TRAIN_SECTION, 'train_files')
+  train_dir = read_strs_config(TRAIN_SECTION, 'train_dir')
+  train_files = utils.get_files(train_dir)
+
   weight_files = read_strs_config(TRAIN_SECTION, 'weight_files', False)
   if weight_files != None and len(train_files) != len(weight_files):
     raise ValueError('The numbers of train files and weight files do not match.')
@@ -105,7 +107,8 @@ if mode == 'train' or mode == 'dist_train':
   else:
     dist_train(ps_hosts, worker_hosts, job_name, task_idx, train_files, weight_files, validation_files, epoch_num, vocabulary_size, vocabulary_block_num, hash_feature_id, factor_num, init_value_range, loss_type, optimizer, batch_size, factor_lambda, bias_lambda, thread_num, model_file, model_path, model_version)
 elif mode == 'predict' or mode == 'dist_predict':
-  predict_files = read_config(PREDICT_SECTION, 'predict_files').split(',')
+  predict_dir = read_config(PREDICT_SECTION, 'predict_dir')
+  predict_files = utils.get_files(predict_dir)
   score_path = read_config(PREDICT_SECTION, 'score_path')
 
   if mode == 'predict':
